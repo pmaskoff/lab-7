@@ -1,9 +1,15 @@
 ---
 title: "Lab 7: Functions + Fish"
-author: "Your name here!"
+author: "Parker Mascott"
+date: "11/09/2024"
 format: html
 editor: source
 embed-resources: true
+code-tools: true
+code-fold: true
+execute:
+  echo: true
+  error: true
 ---
 
 The goal of this lab is learn more about exploring missing data and writing
@@ -11,8 +17,14 @@ modular code.
 
 ```{r}
 #| label: setup
+#| message: false
+#| results: false
 
+library(tidyverse)
+library(here)
+library(ggthemes)
 
+fish <- read_csv(here("data", "BlackfootFish.csv"))
 ```
 
 ## The Data
@@ -45,12 +57,40 @@ measurement errors.
 ```{r}
 #| label: find-missing-values
 
+missing_values_summary <- fish |>
+  summarise(across(everything(), ~ sum(is.na(.)), .names = "missing_{col}")) |>
+  mutate(total_rows_with_missing = sum(rowSums(is.na(fish)) > 0)) |>
+  select(where(~ any(. > 0)))
+
+missing_values_summary
+
 ```
+
+There are 1796 rows with the weight variable missing.
 
 **2. Create ONE thoughtful visualization that explores the frequency of missing values across the different years, sections, and trips.**
 
 ```{r}
 #| label: visual-of-missing-values-over-time
+
+fish_missing_summary <- fish |>
+  filter(if_any(everything(), is.na)) |>
+  group_by(year, section, trip) |>
+  summarise(missing = n(), .groups = 'drop')
+
+ggplot(fish_missing_summary, aes(x = year, 
+                                 y = section, 
+                                 fill = missing)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(option = "C", name = "Missing Count") +
+  labs(
+    x = "Year",
+    y = "Section",
+    title = "Frequency of Missing Values by Year, Section, and Trip",
+    subtitle = "Each block shows the count of missing values for a unqiue year-section-trip combo"
+  ) +
+  theme_minimal()
+
 
 ```
 
@@ -84,6 +124,7 @@ understand the intent of the process. *Additionally, it can make it very difficu
 
 **3. What is the mistake I made in the above rescaling code?**
 
+in the last line, the min(length, na.rm = TRUE) should be replaced with min(weight, na.rm = TRUE). Accidentally used the variable from the line before.
 
 When you find yourself copy-pasting lines of code, it's time to write a
 function, instead!
@@ -96,6 +137,10 @@ function, instead!
 ```{r}
 #| label: write-rescale-function
 
+rescale_01 <- function(x) {
+  rescaled <- (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+  return(rescaled)
+}
 ```
 
 ::: callout-tip
@@ -148,9 +193,23 @@ fish |>
   ggplot(aes(x = length)) + 
   geom_histogram(binwidth = 45) +
   labs(x = "Original Values of Fish Length (mm)") +
-  scale_y_continuous(limits = c(0,4000))
+  scale_y_continuous(limits = c(0,4000)) +
+  theme_light()
 
 # Code for Q7 plot.
+
+resc_fish <- fish |>
+  mutate(length_scaled = rescale_01(length))
+
+resc_fish |>  
+  ggplot(aes(x = length_scaled)) + 
+  geom_histogram(binwidth = 45 / 1000) +
+  labs(x = "Rescaled Values of Fish Length (0 to 1)") +
+  scale_y_continuous(limits = c(0,4000)) +
+  theme_light()
+
+
+
 
 ```
 
@@ -184,6 +243,10 @@ section of R for Data Science!
 ```{r}
 #| label: rescale-data-frame-function
 
+rescale_column <- function(df, vars) {
+  df |>
+    mutate(across(all_of(vars), rescale_01, .names = "{.col}_scaled"))
+  }
 ```
 
 **9. Use your `rescale_column()` function to rescale *both* the `length` and `weight` columns.**
@@ -194,5 +257,9 @@ I expect that you carry out this process by calling the `rescale_column()` funct
 
 ```{r}
 #| label: rescale-two-columns
+
+variables <- c("length", "weight")
+
+rescale_column(fish, variables)
 
 ```
