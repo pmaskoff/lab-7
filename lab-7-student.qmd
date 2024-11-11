@@ -57,12 +57,10 @@ measurement errors.
 ```{r}
 #| label: find-missing-values
 
-missing_values_summary <- fish |>
-  summarise(across(everything(), ~ sum(is.na(.)), .names = "missing_{col}")) |>
-  mutate(total_rows_with_missing = sum(rowSums(is.na(fish)) > 0)) |>
-  select(where(~ any(. > 0)))
-
-missing_values_summary
+fish_missing_summary <- fish |>
+  filter(if_any(everything(), is.na)) |>
+  group_by(year, section, trip) |>
+  summarise(missing = n(), .groups = 'drop')
 
 ```
 
@@ -72,11 +70,6 @@ There are 1796 rows with the weight variable missing.
 
 ```{r}
 #| label: visual-of-missing-values-over-time
-
-fish_missing_summary <- fish |>
-  filter(if_any(everything(), is.na)) |>
-  group_by(year, section, trip) |>
-  summarise(missing = n(), .groups = 'drop')
 
 ggplot(fish_missing_summary, aes(x = year, 
                                  y = section, 
